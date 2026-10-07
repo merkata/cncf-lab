@@ -35,6 +35,8 @@ helm repo update
 helm upgrade --install argocd argo/argo-cd \
   --namespace "${ARGO_NAMESPACE}" \
   --set server.extraArgs="{--insecure}" \
+  --set server.service.type=NodePort \
+  --set server.service.nodePortHttp=30080 \
   --wait
 
 echo "=== 4. Bootstrapping App-of-Apps ==="

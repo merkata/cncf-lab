@@ -4,7 +4,7 @@ nodes:
   - role: control-plane
     extraPortMappings:
       # Argo
-      - containerPort: 80
+      - containerPort: 30080
         hostPort: 8080
         protocol: TCP
       - containerPort: 443
