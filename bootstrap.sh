@@ -18,8 +18,16 @@ if ! eval which argocd; then
   echo "argocd CLI not detected, consider installing it (brew install argocd)"
 fi
 
+if ! eval which argo; then
+  echo "argo workflows CLI not detected, consider installing it (brew install argo)"
+fi
+
 if ! eval which kubectl; then
   echo "kubectl CLI not detected, consider installing it (brew install kubectl)"
+fi
+
+if ! eval which kubeseal; then
+  echo "kubeseal CLI not detected, consider installing it (brew install kubeseal)"
 fi
 
 echo "=== 1. Destroying existing cluster (if present) ==="
