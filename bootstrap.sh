@@ -26,6 +26,10 @@ if ! eval which kubectl; then
   echo "kubectl CLI not detected, consider installing it (brew install kubectl)"
 fi
 
+if ! eval which kubectl-argo-rollouts; then
+  echo "kubectl argo rollouts CLI not detected, consider installing it (brew install argoproj/tap/kubectl-argo-rollouts)"
+fi
+
 if ! eval which kubeseal; then
   echo "kubeseal CLI not detected, consider installing it (brew install kubeseal)"
 fi
