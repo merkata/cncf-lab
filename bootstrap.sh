@@ -40,7 +40,10 @@ kind delete cluster --name "${CLUSTER_NAME}" || true
 echo "=== 2. Creating Kind Cluster ==="
 kind create cluster --name "${CLUSTER_NAME}" --config kind-config.yaml
 
-echo "=== 3. Installing Argo CD ==="
+echo "=== 3. Prepare Sealed Secrets ==="
+kubectl apply -f gitops/sealed-secrets-key.yaml -n kube-system
+
+echo "=== 4. Installing Argo CD ==="
 kubectl create namespace "${ARGO_NAMESPACE}"
 helm repo add argo https://argoproj.github.io/argo-helm
 helm repo update
@@ -51,7 +54,7 @@ helm upgrade --install argocd argo/argo-cd \
   --set server.service.nodePortHttp=30080 \
   --wait
 
-echo "=== 4. Bootstrapping App-of-Apps ==="
+echo "=== 5. Bootstrapping App-of-Apps ==="
 kubectl apply -f gitops/root-app.yaml -n "${ARGO_NAMESPACE}"
 
 echo "=== Lab Ready! ==="
