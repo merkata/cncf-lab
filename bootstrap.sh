@@ -48,6 +48,7 @@ kubectl create namespace "${ARGO_NAMESPACE}"
 helm repo add argo https://argoproj.github.io/argo-helm
 helm repo update
 helm upgrade --install argocd argo/argo-cd \
+  --version 10.11.1 \
   --namespace "${ARGO_NAMESPACE}" \
   --set server.extraArgs="{--insecure}" \
   --set server.service.type=NodePort \
