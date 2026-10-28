@@ -47,7 +47,16 @@ echo "=== 2. Creating Kind Cluster ==="
 kind create cluster --name "${CLUSTER_NAME}" --config kind-config.yaml
 
 echo "=== 3. Installing Gateway API CRDs ==="
-kubectl apply -f "https://github.com/kubernetes-sigs/gateway-api/releases/download/${GATEWAY_API_VERSION}/standard-install.yaml"
+# The experimental channel is required because Cilium 1.19's Gateway API
+# controller still registers a v1alpha2 TLSRoute indexer.
+kubectl apply --server-side -f "https://github.com/kubernetes-sigs/gateway-api/releases/download/${GATEWAY_API_VERSION}/experimental-install.yaml"
+kubectl wait --for=condition=Established --timeout=60s \
+  crd/gatewayclasses.gateway.networking.k8s.io \
+  crd/gateways.gateway.networking.k8s.io \
+  crd/httproutes.gateway.networking.k8s.io \
+  crd/grpcroutes.gateway.networking.k8s.io \
+  crd/referencegrants.gateway.networking.k8s.io \
+  crd/tlsroutes.gateway.networking.k8s.io
 
 echo "=== 4. Installing Cilium ==="
 API_SERVER_IP=$(kubectl get node "${CLUSTER_NAME}-control-plane" -o jsonpath='{.status.addresses[?(@.type=="InternalIP")].address}')
