@@ -5,6 +5,9 @@ CLUSTER_NAME="cncf-lab"
 ARGO_NAMESPACE="argocd"
 CILIUM_VERSION="1.19.10"
 GATEWAY_API_VERSION="v1.6.3"
+# Keep this in sync with expose.clusterIP.staticClusterIP for Harbor in the
+# gitops-lab-configs repository (apps/base/harbor.yaml).
+HARBOR_CLUSTER_IP="10.96.0.100"
 
 if ! eval which kind; then
   echo "You need kind in order to create a k8s cluster, install it first (brew install kind)"
@@ -45,6 +48,16 @@ kind delete cluster --name "${CLUSTER_NAME}" || true
 
 echo "=== 2. Creating Kind Cluster ==="
 kind create cluster --name "${CLUSTER_NAME}" --config kind-config.yaml
+
+# containerd image pulls happen in the node network namespace and use the
+# node's resolver, not CoreDNS. Resolve Harbor (and its externalURL host, used
+# by Harbor's token service) to the fixed Harbor ClusterIP.
+echo "=== 2b. Configuring Harbor name resolution on the kind node ==="
+docker exec "${CLUSTER_NAME}-control-plane" sh -c "
+  if ! grep -q 'harbor.harbor.svc.cluster.local' /etc/hosts; then
+    printf '%s\n' '${HARBOR_CLUSTER_IP} harbor.harbor.svc.cluster.local harbor.127.0.0.1.nip.io' >> /etc/hosts
+  fi
+"
 
 echo "=== 3. Installing Gateway API CRDs ==="
 # The experimental channel is required because Cilium 1.19's Gateway API

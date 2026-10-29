@@ -4,6 +4,15 @@ networking:
   disableDefaultCNI: true
   podSubnet: 10.244.0.0/16
   serviceSubnet: 10.96.0.0/16
+# Harbor is served over plain HTTP inside the cluster. containerd performs
+# image pulls from the node network namespace, so it needs both an HTTP
+# registry endpoint and a resolvable Harbor service name.
+containerdConfigPatches:
+  - |-
+    [plugins."io.containerd.grpc.v1.cri".registry.mirrors."harbor.harbor.svc.cluster.local"]
+      endpoint = ["http://harbor.harbor.svc.cluster.local"]
+    [plugins."io.containerd.grpc.v1.cri".registry.configs."harbor.harbor.svc.cluster.local".tls]
+      insecure_skip_verify = true
 nodes:
   - role: control-plane
     kubeadmConfigPatches:
