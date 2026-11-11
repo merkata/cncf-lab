@@ -3,7 +3,7 @@ set -euo pipefail
 
 CLUSTER_NAME="cncf-lab"
 ARGO_NAMESPACE="argocd"
-CILIUM_VERSION="1.19.10"
+ISTIO_VERSION="1.32.0"
 GATEWAY_API_VERSION="v1.6.3"
 # Keep this in sync with expose.clusterIP.staticClusterIP for Harbor in the
 # gitops-lab-configs repository (apps/base/harbor.yaml).
@@ -39,8 +39,8 @@ if ! eval which kubeseal; then
   echo "kubeseal CLI not detected, consider installing it (brew install kubeseal)"
 fi
 
-if ! eval which cilium; then
-  echo "cilium CLI not detected, consider installing it (brew install cilium-cli)"
+if ! eval which istioctl; then
+  echo "istioctl CLI not detected, consider installing it (brew install istioctl)"
 fi
 
 echo "=== 1. Destroying existing cluster (if present) ==="
@@ -60,8 +60,8 @@ docker exec "${CLUSTER_NAME}-control-plane" sh -c "
 "
 
 echo "=== 3. Installing Gateway API CRDs ==="
-# The experimental channel is required because Cilium 1.19's Gateway API
-# controller still registers a v1alpha2 TLSRoute indexer.
+# The experimental channel includes the TLSRoute and GRPCRoute CRDs this lab
+# waits for below. Istio itself works with the standard channel.
 kubectl apply --server-side -f "https://github.com/kubernetes-sigs/gateway-api/releases/download/${GATEWAY_API_VERSION}/experimental-install.yaml"
 kubectl wait --for=condition=Established --timeout=60s \
   crd/gatewayclasses.gateway.networking.k8s.io \
@@ -71,27 +71,41 @@ kubectl wait --for=condition=Established --timeout=60s \
   crd/referencegrants.gateway.networking.k8s.io \
   crd/tlsroutes.gateway.networking.k8s.io
 
-echo "=== 4. Installing Cilium ==="
-API_SERVER_IP=$(kubectl get node "${CLUSTER_NAME}-control-plane" -o jsonpath='{.status.addresses[?(@.type=="InternalIP")].address}')
-helm repo add cilium https://helm.cilium.io
+echo "=== 4. Installing Istio ==="
+# https://istio.io/latest/docs/setup/install/helm/
+helm repo add istio https://blob.istio.io/istio-release/charts --force-update
 helm repo update
-helm upgrade --install cilium cilium/cilium \
-  --version "${CILIUM_VERSION}" \
-  --namespace kube-system \
-  --values cilium-values.yaml \
-  --set k8sServiceHost="${API_SERVER_IP}" \
+helm install istio-base istio/base \
+  -n istio-system \
+  --set defaultRevision=default \
+  --create-namespace \
+  --version "${ISTIO_VERSION}"
+helm install istiod istio/istiod \
+  -n istio-system \
+  --version "${ISTIO_VERSION}" \
   --wait
 
-if command -v cilium >/dev/null 2>&1; then
-  cilium status --wait
-fi
+# The istio/gateway chart deploys the ingress gateway manually. Its Service is
+# pinned to the nodePorts mapped in kind-config.yaml, so the host's :80/:443
+# reach Envoy. The Gateway resource in gitops-lab-configs links to this Service
+# through spec.addresses, so both must live in the same namespace.
+kubectl create namespace istio-ingress --dry-run=client -o yaml | kubectl apply -f -
+helm install istio-ingress istio/gateway \
+  -n istio-ingress \
+  --version "${ISTIO_VERSION}" \
+  --values istio-gateway-values.yaml \
+  --wait
+
+# istiod creates the GatewayClass. Wait for it before Argo CD applies the
+# Gateway resource from gitops-lab-configs.
+kubectl wait --for=condition=Accepted gatewayclass/istio --timeout=60s
 
 echo "=== 5. Prepare Sealed Secrets ==="
 kubectl apply -f gitops/sealed-secrets-key.yaml -n kube-system
 
 echo "=== 6. Installing Argo CD ==="
 kubectl create namespace "${ARGO_NAMESPACE}"
-helm repo add argo https://argoproj.github.io/argo-helm
+helm repo add argo https://argoproj.github.io/argo-helm --force-update
 helm repo update
 helm upgrade --install argocd argo/argo-cd \
   --version 10.11.1 \
@@ -124,7 +138,6 @@ kubectl -n "${ARGO_NAMESPACE}" get secret argocd-initial-admin-secret -o jsonpat
 echo
 echo "UIs (after Argo CD syncs the app-of-apps):"
 echo "  Argo CD:    http://argocd.127.0.0.1.nip.io"
-echo "  Hubble:     http://hubble.127.0.0.1.nip.io"
 echo "  Grafana:    http://grafana.127.0.0.1.nip.io"
 echo "  Prometheus: http://prometheus.127.0.0.1.nip.io"
 echo "  Argo WF:    http://argo.127.0.0.1.nip.io"

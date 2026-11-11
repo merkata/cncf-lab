@@ -1,0 +1,33 @@
+# Values for the manually deployed Istio ingress gateway (istio/gateway).
+#
+# The Gateway resource in gitops-lab-configs/apps/platform/gateway.yaml links
+# to this Service with spec.addresses, so the Service and the Gateway must be in
+# the same namespace. The gateway Pod also needs the gateway-name label for
+# policy attachment (targetRef) to work.
+#
+# Keep the nodePort values in sync with the extraPortMappings in
+# kind-config.yaml:
+#   node 30081 -> host 80
+#   node 30444 -> host 443
+service:
+  type: NodePort
+  ports:
+    - name: status-port
+      port: 15021
+      targetPort: 15021
+      protocol: TCP
+    - name: http2
+      port: 80
+      targetPort: 80
+      protocol: TCP
+      nodePort: 30081
+    - name: https
+      port: 443
+      targetPort: 443
+      protocol: TCP
+      nodePort: 30444
+
+# This label is also applied to the gateway Pod. It must match the name of the
+# Gateway resource (istio-ingress/lab).
+labels:
+  gateway.networking.k8s.io/gateway-name: lab

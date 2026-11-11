@@ -1,9 +1,5 @@
 kind: Cluster
 apiVersion: kind.x-k8s.io/v1alpha4
-networking:
-  disableDefaultCNI: true
-  podSubnet: 10.244.0.0/16
-  serviceSubnet: 10.96.0.0/16
 # Harbor is served over plain HTTP inside the cluster. containerd performs
 # image pulls from the node network namespace, so it needs both an HTTP
 # registry endpoint and a resolvable Harbor service name.
@@ -15,22 +11,18 @@ containerdConfigPatches:
       insecure_skip_verify = true
 nodes:
   - role: control-plane
-    kubeadmConfigPatches:
-      - |
-        kind: InitConfiguration
-        nodeRegistration:
-          kubeletExtraArgs:
-            node-labels: "ingress-ready=true"
     extraPortMappings:
-      # Cilium Gateway API hostNetwork listener (Gateway port 8080)
-      - containerPort: 8080
+      # The Istio ingress gateway is a NodePort Service. kind publishes ports
+      # from the node container, so map the host's 80/443 to the nodePorts
+      # pinned in istio-gateway-values.yaml.
+      - containerPort: 30081
         hostPort: 80
         protocol: TCP
-      # Argo CD (existing; can be removed once Argo has an HTTPRoute)
+      - containerPort: 30444
+        hostPort: 443
+        protocol: TCP
+      # Argo CD (NodePort 30080). It is also reachable through the Istio
+      # gateway at http://argocd.127.0.0.1.nip.io once the app-of-apps syncs.
       - containerPort: 30080
         hostPort: 8080
-        protocol: TCP
-      # Reserved for an HTTPS Gateway listener on port 8443
-      - containerPort: 8443
-        hostPort: 8443
         protocol: TCP
